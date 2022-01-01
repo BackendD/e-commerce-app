@@ -1,0 +1,191 @@
+/* Store gateway application */
+application {
+  config {
+    // JDL option name                              Default value         Possible values                                                  Comment
+    baseName gateway                             // jhipster
+    reactive false                               // false
+    messageBroker kafka                          // false                 kafka, false
+    applicationType gateway                      // monolith              monolith, microservice, gateway
+    packageName tk.homesys.gateway                 // com.mycompany.myapp                                                                    Sets the packageFolder option
+    authenticationType oauth2                    // jwt                   jwt, session, oauth2                                             jwt
+//  prodDatabaseType mysql                       // mysql                 mysql, mariadb, mssql, postgresql, oracle, no
+    databaseType mongodb                         // sql                   sql, mongodb, cassandra, couchbase, no
+    cacheProvider hazelcast                      // ehcache or hazelcast  caffeine, ehcache, hazelcast, infinispan, memcached, redis, no   ehcache for monoliths and gateways, hazelcast otherwise
+    buildTool gradle                             // maven                 maven, gradle
+    clientFramework angularX                     // angularX              angularX, react
+    languages [en, fa]                           // [en, fr]              Languages available in JHipster                                  Braces are mandatory
+//  websocket spring-websocket                   // false                 spring-websocket, false
+    testFrameworks [protractor]                  // []                    protractor, cucumber, gatling                                    Braces mandatory
+    serviceDiscoveryType no                      // false                 eureka, consul, no
+  }
+  entities *
+}
+
+/* Invoice microservice application */
+application {
+  config {
+    baseName invoice
+    reactive false                               // false
+    messageBroker kafka                          // false                 kafka, false
+    applicationType microservice
+    packageName tk.homesys.invoice
+    authenticationType oauth2
+    prodDatabaseType mysql
+    buildTool gradle
+    serverPort 8081
+    languages [en, fa]
+  }
+  entities Invoice, Shipment
+}
+
+/* Notification microservice application */
+application {
+  config {
+    baseName notification
+    reactive false                                // false
+    messageBroker kafka                          // false                 kafka, false
+    applicationType microservice
+    packageName tk.homesys.notification
+    authenticationType oauth2
+    databaseType mongodb
+    cacheProvider no
+    enableHibernateCache false
+    buildTool gradle
+    serverPort 8082
+    languages [en, fa]
+  }
+  entities Notification
+}
+
+/* Entiteis for store service */
+
+/** Product sold by the Online store */
+entity Product {
+    name String required
+    description String
+    price BigDecimal required min(0)
+    size Size required
+    image ImageBlob
+}
+
+enum Size {
+    S, M, L, XL, XXL
+}
+
+entity ProductCategory {
+    name String required
+    description String
+}
+
+entity Customer {
+    firstName String required
+    lastName String required
+    gender Gender required
+    email String required pattern(/^[^@\s]+@[^@\s]+\.[^@\s]+$/)
+    phone String required
+    addressLine1 String required
+    addressLine2 String
+    city String required
+    country String required
+}
+
+enum Gender {
+    MALE, FEMALE, OTHER
+}
+
+entity ProductOrder {
+    placedDate Instant required
+    status OrderStatus required
+    code String required
+}
+
+enum OrderStatus {
+    COMPLETED, PENDING, CANCELLED
+}
+
+entity OrderItem {
+    quantity Integer required min(0)
+    totalPrice BigDecimal required min(0)
+    status OrderItemStatus required
+}
+
+enum OrderItemStatus {
+    AVAILABLE, OUT_OF_STOCK, BACK_ORDER
+}
+
+entity Invoice {
+    code String required
+    date Instant required
+    details String
+    status InvoiceStatus required
+    paymentMethod PaymentMethod required
+    paymentDate Instant required
+    paymentAmount BigDecimal required
+    productOrderId Long required
+}
+
+enum InvoiceStatus {
+    PAID, ISSUED, CANCELLED
+}
+
+enum PaymentMethod {
+    CREDIT_CARD, CASH_ON_DELIVERY, PAYPAL
+}
+
+entity Shipment {
+    trackingCode String
+    date Instant required
+    details String
+}
+
+entity Notification {
+    date Instant required
+    details String
+    sentDate Instant required
+    format NotificationType required
+    userId Long required
+    productId Long required
+}
+
+enum NotificationType {
+    EMAIL, SMS, PARCEL
+}
+
+relationship OneToOne {
+    Customer{user(login) required} to User
+}
+
+relationship ManyToOne {
+    OrderItem{product(name) required} to Product
+}
+
+relationship OneToMany {
+    Customer{order} to ProductOrder{customer(email) required}
+    ProductOrder{orderItem} to OrderItem{order(code) required}
+    ProductCategory{product} to Product{productCategory(name)}
+    Invoice{shipment} to Shipment{invoice(code) required}
+}
+
+microservice Invoice, Shipment with invoice
+microservice Notification with notification
+
+/* General options */
+
+service * with serviceClass
+paginate Product, Customer, ProductOrder, Invoice, Shipment, OrderItem with pagination
+
+/**
+* Deployments
+*/
+deployment {
+    // JDL option name                              Default value         Possible values                                                  Comment
+    deploymentType kubernetes                                          // docker-compose, kubernetes, openshift
+    appsFolders [gateway, invoice, notification]                                                                                          // Directory names for the applications separated by comma. Must be a list, example [foo, bar]
+    dockerRepositoryName "BackendD"                                                                                                       // The name or URL of the docker repository. Must be in double quotes
+    serviceDiscoveryType no                      // eureka                eureka, consul, no
+    istio false                                  // false                 true, false                                                      Applicable only when deploymentType is kubernetes
+    kubernetesServiceType Ingress                // LoadBalancer          LoadBalancer, NodePort, Ingress                                  Applicable only when deploymentType is kubernetes
+    kubernetesNamespace ecommerce                // default                                                                                Applicable only when deploymentType is kubernetes
+    ingressDomain "homesys.tk"                   //                                                                                        The domain for Ingress when kubernetesServiceType is `Ingress`. Must be in double quotes. Applicable only when deploymentType is kubernetes
+    ingressType nginx                            // nginx                 nginx, gke                                                       The kubernetes ingress type, only set when `kubernetesServiceType` is set to Ingress
+}
